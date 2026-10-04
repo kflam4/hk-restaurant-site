@@ -55,7 +55,7 @@
     /* ---------- Search bar ---------- */
     .search-wrap {
       max-width: 820px;
-      margin: 0 auto 24px;
+      margin: 0 auto 12px;
       position: sticky;
       top: 12px;
       z-index: 10;
@@ -113,6 +113,48 @@
       border-radius: 0 10px 10px 0;
     }
     #district:hover { background: #fafafa; }
+
+    /* ---------- Tag filter bar ---------- */
+    .tag-bar {
+      max-width: 820px;
+      margin: 0 auto 20px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 4px 2px;
+    }
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 12px;
+      font-size: 12.5px;
+      font-weight: 500;
+      font-family: inherit;
+      color: var(--text-soft);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .tag-chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .tag-chip.active {
+      background: linear-gradient(135deg, #ff6b35, #f7931e);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 10px rgba(255,107,53,0.3);
+    }
+    .tag-chip .count {
+      font-size: 11px;
+      opacity: 0.7;
+      font-weight: 400;
+    }
 
     /* ---------- Result meta ---------- */
     .meta {
@@ -419,6 +461,8 @@
     </div>
   </div>
 
+  <div class="tag-bar" id="tagBar"></div>
+
   <div class="meta" id="meta"></div>
   <div class="list" id="list"></div>
   <div class="pagination" id="pagination"></div>
@@ -433,6 +477,7 @@
     const API_URL = "https://hk-restaurant-api.bighitbandf.workers.dev";
     const input      = document.getElementById("search");
     const districtEl = document.getElementById("district");
+    const tagBarEl   = document.getElementById("tagBar");
     const metaEl     = document.getElementById("meta");
     const listEl     = document.getElementById("list");
     const pgEl       = document.getElementById("pagination");
@@ -443,6 +488,7 @@
     let timer;
     let currentPage = 1;
     let totalPages  = 1;
+    let activeTag   = "";   // currently selected cuisine tag
 
     /* ---------- Load districts ---------- */
     async function loadDistricts() {
@@ -458,6 +504,52 @@
       } catch (e) {
         console.error("Failed to load districts:", e);
       }
+    }
+
+    /* ---------- Load cuisine tags ---------- */
+    async function loadTags() {
+      try {
+        const res = await fetch(`${API_URL}/tags`);
+        const tags = await res.json();   // [{ name, count }, ...]
+
+        tagBarEl.innerHTML = "";
+
+        // "全部" chip
+        const allChip = document.createElement("button");
+        allChip.className = "tag-chip active";
+        allChip.textContent = "全部";
+        allChip.addEventListener("click", () => selectTag(""));
+        tagBarEl.appendChild(allChip);
+
+        tags.forEach(t => {
+          const chip = document.createElement("button");
+          chip.className = "tag-chip";
+          chip.dataset.tag = t.name;
+          chip.innerHTML = `${escapeHtml(t.name)} <span class="count">${t.count}</span>`;
+          chip.addEventListener("click", () => selectTag(t.name));
+          tagBarEl.appendChild(chip);
+        });
+      } catch (e) {
+        console.error("Failed to load tags:", e);
+      }
+    }
+
+    /* ---------- Select a cuisine tag ---------- */
+    function selectTag(name) {
+      activeTag = (activeTag === name) ? "" : name;   // click same tag again = clear
+
+      // Update chip styles
+      tagBarEl.querySelectorAll(".tag-chip").forEach(chip => {
+        const chipTag = chip.dataset.tag || "";
+        const isAll = chip.textContent.trim().startsWith("全部");
+        if (isAll) {
+          chip.classList.toggle("active", activeTag === "");
+        } else {
+          chip.classList.toggle("active", chipTag === activeTag);
+        }
+      });
+
+      doSearch(1);
     }
 
     /* ---------- Skeleton loading ---------- */
@@ -486,6 +578,7 @@
         const params = new URLSearchParams();
         if (q) params.set("q", q);
         if (district) params.set("district", district);
+        if (activeTag) params.set("cuisine", activeTag);
         params.set("page", page);
 
         const res  = await fetch(`${API_URL}/?${params.toString()}`);
@@ -521,7 +614,6 @@
 
     /* ---------- Render a single card ---------- */
     function renderCard(r) {
-      // Contact links (kept in case you add them manually to the DB)
       const contacts = [];
       if (r.tel) {
         contacts.push(`<a class="contact-item" href="tel:${escapeHtml(r.tel)}">📞 ${escapeHtml(r.tel)}</a>`);
@@ -537,8 +629,6 @@
         contacts.push(`<a class="contact-item" href="${escapeHtml(r.instagram)}" target="_blank" rel="noopener">📷 Instagram</a>`);
       }
 
-      // Google Maps search URL: name + address
-      // If address is missing, fall back to just the name
       const mapQuery = [r.name, r.address].filter(Boolean).join(" ");
       const mapUrl = "https://www.google.com/maps/search/?api=1&query=" +
         encodeURIComponent(mapQuery);
@@ -636,7 +726,7 @@
     districtEl.addEventListener("change", () => doSearch(1));
 
     /* ---------- Init ---------- */
-    loadDistricts().then(() => doSearch(1));
+    Promise.all([loadDistricts(), loadTags()]).then(() => doSearch(1));
   </script>
 </body>
 </html>
