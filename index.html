@@ -193,10 +193,6 @@
       background: #eef2ff;
       color: #4f46e5;
     }
-    .tag.contact {
-      background: #ecfdf5;
-      color: #059669;
-    }
 
     /* ---------- Contact row ---------- */
     .contact-row {
@@ -222,29 +218,6 @@
       background: var(--accent-soft);
       color: var(--accent);
       border-color: var(--accent);
-    }
-
-    /* ---------- Update button ---------- */
-    .update-btn {
-      margin-top: 10px;
-      padding: 6px 12px;
-      font-size: 12px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      border-radius: 8px;
-      cursor: pointer;
-      color: var(--text-soft);
-      font-family: inherit;
-      transition: all 0.15s;
-    }
-    .update-btn:hover:not(:disabled) {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: var(--accent-soft);
-    }
-    .update-btn:disabled {
-      opacity: 0.6;
-      cursor: wait;
     }
 
     /* ---------- Empty / loading ---------- */
@@ -377,30 +350,6 @@
     .skel-line.w90 { width: 90%; }
     .skel-line.w40 { width: 40%; }
 
-    /* ---------- Toast ---------- */
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%) translateY(100px);
-      background: #1a1a1a;
-      color: #fff;
-      padding: 12px 20px;
-      border-radius: 10px;
-      font-size: 14px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-      transition: transform 0.3s ease, opacity 0.3s ease;
-      opacity: 0;
-      z-index: 100;
-      pointer-events: none;
-    }
-    .toast.show {
-      transform: translateX(-50%) translateY(0);
-      opacity: 1;
-    }
-    .toast.success { background: #059669; }
-    .toast.error { background: #dc2626; }
-
     /* ---------- Mobile ---------- */
     @media (max-width: 600px) {
       body { padding: 0 14px 60px; }
@@ -446,8 +395,6 @@
     <button id="jumpBtn">前往</button>
   </div>
 
-  <div class="toast" id="toast"></div>
-
   <script>
     const API_URL = "https://hk-restaurant-api.bighitbandf.workers.dev";
     const input      = document.getElementById("search");
@@ -458,22 +405,10 @@
     const jumpEl     = document.getElementById("jump");
     const jumpInput  = document.getElementById("jumpInput");
     const jumpBtn    = document.getElementById("jumpBtn");
-    const toastEl    = document.getElementById("toast");
 
     let timer;
     let currentPage = 1;
     let totalPages  = 1;
-
-    /* ---------- Toast ---------- */
-    let toastTimer;
-    function showToast(msg, type = "") {
-      toastEl.textContent = msg;
-      toastEl.className = "toast show " + type;
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => {
-        toastEl.className = "toast " + type;
-      }, 3000);
-    }
 
     /* ---------- Load districts ---------- */
     async function loadDistricts() {
@@ -568,7 +503,7 @@
       }
 
       return `
-        <div class="card" data-id="${r.id}">
+        <div class="card">
           <div class="name">${escapeHtml(r.name)}</div>
           ${r.address ? `<div class="addr">${escapeHtml(r.address)}</div>` : ""}
           <div class="tags">
@@ -577,85 +512,9 @@
             ${r.licence_type ? `<span class="tag">${escapeHtml(r.licence_type)}</span>` : ""}
           </div>
           ${contacts.length ? `<div class="contact-row">${contacts.join("")}</div>` : ""}
-          <button class="update-btn" data-id="${r.id}" data-name="${escapeHtml(r.name)}">
-            🔄 更新聯絡資料
-          </button>
         </div>
       `;
     }
-
-    /* ---------- Update contact (AI enrichment) ---------- */
-    async function updateContact(btn, id, name) {
-      btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = "⏳ 查詢中...";
-
-      try {
-        const res = await fetch(`${API_URL}/enrich`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, name })
-        });
-        const data = await res.json();
-
-        if (data.success && data.updated) {
-          showToast(`✅ 已更新「${name}」的資料`, "success");
-          btn.textContent = "✅ 已更新";
-          // Refresh just this card after a short delay
-          setTimeout(() => {
-            refreshCard(id);
-          }, 800);
-        } else if (data.success && !data.updated) {
-          showToast(`ℹ️ 找不到「${name}」的新資料`, "");
-          btn.textContent = "ℹ️ 無新資料";
-          setTimeout(() => {
-            btn.textContent = originalText;
-            btn.disabled = false;
-          }, 2000);
-        } else {
-          showToast(`❌ 更新失敗：${data.error || "未知錯誤"}`, "error");
-          btn.textContent = "❌ 失敗";
-          setTimeout(() => {
-            btn.textContent = originalText;
-            btn.disabled = false;
-          }, 2000);
-        }
-      } catch (e) {
-        showToast(`❌ 網絡錯誤`, "error");
-        btn.textContent = "❌ 錯誤";
-        setTimeout(() => {
-          btn.textContent = originalText;
-          btn.disabled = false;
-        }, 2000);
-      }
-    }
-
-    /* ---------- Refresh a single card by ID ---------- */
-    async function refreshCard(id) {
-      try {
-        const res = await fetch(`${API_URL}/?id=${id}`);
-        const data = await res.json();
-        // The endpoint returns paginated results, so find our row
-        const row = (data.results || []).find(r => r.id === id);
-        if (!row) return;
-        const oldCard = document.querySelector(`.card[data-id="${id}"]`);
-        if (!oldCard) return;
-        const wrapper = document.createElement("div");
-        wrapper.innerHTML = renderCard(row);
-        oldCard.replaceWith(wrapper.firstElementChild);
-      } catch (e) {
-        console.error("refreshCard failed:", e);
-      }
-    }
-
-    /* ---------- Event delegation for update buttons ---------- */
-    listEl.addEventListener("click", (e) => {
-      const btn = e.target.closest(".update-btn");
-      if (!btn) return;
-      const id = parseInt(btn.dataset.id, 10);
-      const name = btn.dataset.name;
-      updateContact(btn, id, name);
-    });
 
     /* ---------- Pagination ---------- */
     function renderPagination(current, total) {
