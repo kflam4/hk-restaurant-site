@@ -20,6 +20,11 @@
     .addr { color: #666; font-size: 14px; margin-top: 6px; }
     .tag { display: inline-block; background: #fff3e0; color: #ff6b35; font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-top: 8px; margin-right: 4px; }
     .empty { text-align: center; color: #999; margin-top: 40px; }
+    .pagination { display: flex; justify-content: center; gap: 6px; margin: 30px 0; flex-wrap: wrap; }
+    .pagination button { padding: 8px 14px; font-size: 14px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; }
+    .pagination button:hover:not(:disabled) { border-color: #ff6b35; color: #ff6b35; }
+    .pagination button.active { background: #ff6b35; color: #fff; border-color: #ff6b35; }
+    .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -32,16 +37,19 @@
     </select>
   </div>
 
-  <div id="results"><p class="empty">輸入關鍵字或選擇地區開始搜尋</p></div>
+  <div id="results"><p class="empty">載入中...</p></div>
+  <div id="pagination"></div>
 
   <script>
     const API_URL = "https://hk-restaurant-api.bighitbandf.workers.dev";
     const input = document.getElementById("search");
     const districtSelect = document.getElementById("district");
     const results = document.getElementById("results");
+    const pagination = document.getElementById("pagination");
     let timer;
+    let currentPage = 1;
 
-    // Load districts on page load
+    // Load districts
     async function loadDistricts() {
       try {
         const res = await fetch(`${API_URL}/districts`);
@@ -57,32 +65,38 @@
       }
     }
 
-    async function doSearch() {
+    async function doSearch(page = 1) {
+      currentPage = page;
       const q = input.value.trim();
       const district = districtSelect.value;
 
-      if (!q && !district) {
-        results.innerHTML = '<p class="empty">輸入關鍵字或選擇地區開始搜尋</p>';
-        return;
-      }
-
       results.innerHTML = '<p class="empty">搜尋中...</p>';
+      pagination.innerHTML = "";
 
       try {
         const params = new URLSearchParams();
         if (q) params.set("q", q);
         if (district) params.set("district", district);
+        params.set("page", page);
 
         const res = await fetch(`${API_URL}/?${params.toString()}`);
         const data = await res.json();
 
-        if (!Array.isArray(data) || data.length === 0) {
+        if (data.error) {
+          results.innerHTML = `<p class="empty">錯誤：${data.error}</p>`;
+          return;
+        }
+
+        if (data.total === 0) {
           results.innerHTML = '<p class="empty">沒有找到相關店鋪</p>';
           return;
         }
 
-        results.innerHTML = `<div class="count">共找到 ${data.length} 間</div>` +
-          data.map(r => `
+        const start = (data.page - 1) * data.perPage + 1;
+        const end = Math.min(data.page * data.perPage, data.total);
+
+        results.innerHTML = `<div class="count">共 ${data.total} 間，顯示第 ${start}–${end} 間</div>` +
+          data.results.map(r => `
             <div class="card">
               <div class="name">${r.name}</div>
               <div class="addr">${r.address || ""}</div>
@@ -90,23 +104,66 @@
               ${r.cuisine ? `<span class="tag">${r.cuisine}</span>` : ""}
             </div>
           `).join("");
+
+        renderPagination(data.page, data.totalPages);
       } catch (e) {
         results.innerHTML = '<p class="empty">搜尋出錯，請稍後再試</p>';
         console.error(e);
       }
     }
 
-    // Debounce for text input
+    function renderPagination(current, total) {
+      if (total <= 1) { pagination.innerHTML = ""; return; }
+
+      const buttons = [];
+      const addBtn = (label, page, disabled = false, active = false) => {
+        const btn = document.createElement("button");
+        btn.textContent = label;
+        btn.disabled = disabled;
+        if (active) btn.classList.add("active");
+        btn.addEventListener("click", () => {
+          doSearch(page);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+        pagination.appendChild(btn);
+      };
+
+      addBtn("« 上一頁", current - 1, current === 1);
+
+      // Show page numbers: first, last, and a window around current
+      const pages = new Set();
+      pages.add(1);
+      pages.add(total);
+      for (let i = current - 2; i <= current + 2; i++) {
+        if (i >= 1 && i <= total) pages.add(i);
+      }
+      const sorted = [...pages].sort((a, b) => a - b);
+
+      let prev = 0;
+      for (const p of sorted) {
+        if (p - prev > 1) {
+          const span = document.createElement("span");
+          span.textContent = "…";
+          span.style.padding = "8px 4px";
+          span.style.color = "#999";
+          pagination.appendChild(span);
+        }
+        addBtn(String(p), p, false, p === current);
+        prev = p;
+      }
+
+      addBtn("下一頁 »", current + 1, current === total);
+    }
+
     input.addEventListener("input", () => {
       clearTimeout(timer);
-      timer = setTimeout(doSearch, 300);
+      timer = setTimeout(() => doSearch(1), 300);
     });
 
-    // Immediate search when district changes
-    districtSelect.addEventListener("change", doSearch);
+    districtSelect.addEventListener("change", () => doSearch(1));
 
-    // Load districts when page opens
-    loadDistricts();
+    // Load everything on page open
+    loadDistricts().then(() => doSearch(1));
   </script>
 </body>
 </html>
