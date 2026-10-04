@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>香港食肆搜尋</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, "Microsoft YaHei", sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { text-align: center; margin: 30px 0 20px; font-size: 24px; }
+    input { width: 100%; padding: 14px 16px; font-size: 16px; border: 2px solid #ddd; border-radius: 10px; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: #ff6b35; }
+    #results { margin-top: 20px; }
+    .card { background: #fff; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .name { font-weight: bold; font-size: 17px; color: #222; }
+    .addr { color: #666; font-size: 14px; margin-top: 6px; }
+    .tag { display: inline-block; background: #fff3e0; color: #ff6b35; font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-top: 8px; }
+    .empty { text-align: center; color: #999; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <h1>🍲 香港食肆搜尋</h1>
+  <input id="search" type="text" placeholder="輸入關鍵字，例如：火鍋、旺角、茶餐廳..." autofocus />
+  <div id="results"><p class="empty">輸入關鍵字開始搜尋</p></div>
+
+  <script>
+    const API_URL = "https://hk-restaurant-api.bighitbandf.workers.dev"; // 改成你的 Worker 地址
+    const input = document.getElementById("search");
+    const results = document.getElementById("results");
+    let timer;
+
+    input.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const q = input.value.trim();
+        if (!q) { results.innerHTML = '<p class="empty">輸入關鍵字開始搜尋</p>'; return; }
+
+        results.innerHTML = '<p class="empty">搜尋中...</p>';
+
+        try {
+          const res = await fetch(`${API_URL}/?q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+
+          if (data.length === 0) {
+            results.innerHTML = '<p class="empty">沒有找到相關店鋪</p>';
+            return;
+          }
+
+          results.innerHTML = data.map(r => `
+            <div class="card">
+              <div class="name">${r.name}</div>
+              <div class="addr">${r.address || ""}</div>
+              ${r.cuisine ? `<span class="tag">${r.cuisine}</span>` : ""}
+            </div>
+          `).join("");
+        } catch (e) {
+          results.innerHTML = '<p class="empty">搜尋出錯，請稍後再試</p>';
+        }
+      }, 300);
+    });
+  </script>
+</body>
+</html>
