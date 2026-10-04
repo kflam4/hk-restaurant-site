@@ -220,6 +220,40 @@
       border-color: var(--accent);
     }
 
+    /* ---------- Google Maps button ---------- */
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .map-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      color: #1a73e8;
+      background: #e8f0fe;
+      border: 1px solid #d2e3fc;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .map-btn:hover {
+      background: #d2e3fc;
+      border-color: #1a73e8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(26,115,232,0.2);
+    }
+    .map-btn::before {
+      content: "🗺️";
+      font-size: 14px;
+    }
+
     /* ---------- Empty / loading ---------- */
     .state {
       max-width: 820px;
@@ -487,6 +521,7 @@
 
     /* ---------- Render a single card ---------- */
     function renderCard(r) {
+      // Contact links (kept in case you add them manually to the DB)
       const contacts = [];
       if (r.tel) {
         contacts.push(`<a class="contact-item" href="tel:${escapeHtml(r.tel)}">📞 ${escapeHtml(r.tel)}</a>`);
@@ -502,6 +537,12 @@
         contacts.push(`<a class="contact-item" href="${escapeHtml(r.instagram)}" target="_blank" rel="noopener">📷 Instagram</a>`);
       }
 
+      // Google Maps search URL: name + address
+      // If address is missing, fall back to just the name
+      const mapQuery = [r.name, r.address].filter(Boolean).join(" ");
+      const mapUrl = "https://www.google.com/maps/search/?api=1&query=" +
+        encodeURIComponent(mapQuery);
+
       return `
         <div class="card">
           <div class="name">${escapeHtml(r.name)}</div>
@@ -512,6 +553,9 @@
             ${r.licence_type ? `<span class="tag">${escapeHtml(r.licence_type)}</span>` : ""}
           </div>
           ${contacts.length ? `<div class="contact-row">${contacts.join("")}</div>` : ""}
+          <div class="action-row">
+            <a class="map-btn" href="${mapUrl}" target="_blank" rel="noopener">Google Maps</a>
+          </div>
         </div>
       `;
     }
